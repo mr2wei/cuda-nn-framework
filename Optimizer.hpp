@@ -18,18 +18,20 @@ private:
     float* device_biases_first_moment;
     float* device_biases_second_moment;
 
-    enum OptimizerType {
-        SGD,
-        ADAM
-    };
-    OptimizerType optimizer_type;
-
     void SGD_step();
     void ADAM_step();
 
 public:
+    enum OptimizerType {
+        SGD,
+        ADAM
+    };
+    
+    OptimizerType optimizer_type;
+
     Optimizer(NeuralNetwork* nn, float learning_rate, OptimizerType optimizer_type);
-    void backward();
+    void backward(std::vector<float> target);
+    void backward(float target);
     void step();
     void zero_grad();
 };

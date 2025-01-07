@@ -55,7 +55,7 @@ void ActivationLayer::forward(float *input)
     cudaDeviceSynchronize();
 }
 
-void ActivationLayer::backward(float* output_gradient) {
+void ActivationLayer::backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient) {
     if (input_gradient == nullptr) {
         throw std::runtime_error("Input gradient array is not allocated/defined");
     }
@@ -80,7 +80,3 @@ void ActivationLayer::backward(float* output_gradient) {
     }
 }
 
-void ActivationLayer::step(float learning_rate) {
-    // do nothing
-    return;
-}

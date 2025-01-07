@@ -4,6 +4,7 @@
 #include "NeuralNetwork.hpp"
 #include "LinearLayer.hpp"
 #include "ActivationLayer.hpp"
+#include "Optimizer.hpp"
 
 #include <stdio.h>
 #include <vector>
@@ -44,8 +45,9 @@ int main()
     // Create neural network with specific weights and biases
     NeuralNetwork nn(layers, host_weights, host_biases);
 
+    Optimizer optimizer(&nn, 0.001f, Optimizer::OptimizerType::SGD);
+
     float target = 0.5f;
-    float learning_rate = 0.01f;
     for (int i = 0; i < 4; i++) {
         // Perform forward pass
         nn.forward(host_activations);
@@ -72,9 +74,9 @@ int main()
         }
 
         // backward pass and step
-        nn.backward(target);
-        nn.step(learning_rate);
-        nn.zero_gradients();
+        optimizer.backward(target);
+        optimizer.step();
+        optimizer.zero_grad();
         std::cout << "Step " << i << " complete" << std::endl;
     }
 

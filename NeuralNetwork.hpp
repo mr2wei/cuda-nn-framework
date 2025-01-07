@@ -17,9 +17,6 @@ public:
     float* device_biases;
     float* device_z_values;
     float* device_activations;
-    float* device_weights_gradient;
-    float* device_biases_gradient;
-    float* device_input_gradient;
 
     NeuralNetwork(std::vector<NNLayer*> layers);
     NeuralNetwork(std::vector<NNLayer*> layers, float* host_weights, float* host_biases);
@@ -28,10 +25,6 @@ public:
     void initialize(std::vector<NNLayer*> layers, float* host_weights, float* host_biases);
     void glorot_uniform_weights(int input_size, int output_size, float* host_weights, int offset);
     void forward(float* input); 
-    void backward(std::vector<float> target);
-    void backward(float target);
-    void step(float learning_rate);
-    void zero_gradients();
 
     std::vector<float> get_activations();
     std::vector<float> get_z_values();
