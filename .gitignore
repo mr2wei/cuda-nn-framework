@@ -1,0 +1,15 @@
+model.pth
+model.txt
+cook_county_data/
+activations.txt
+analyse_res.ipynb
+biases.txt
+NNFramework.vcxproj
+NNFramework.vcxproj.filters
+NNFramework.vcxproj.user
+test_with_pytorch.py
+validation_results.csv
+verify_res.py
+weights.txt
+x64/
+.vscode/
