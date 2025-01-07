@@ -33,9 +33,7 @@ int main()
 
     // Create layers
     std::vector<NNLayer*> layers = {
-        new LinearLayer(8, 6),
-        new ActivationLayer(6, ActivationLayer::ActivationType::SIGMOID),
-        new LinearLayer(6, 4),
+        new LinearLayer(8, 4),
         new ActivationLayer(4, ActivationLayer::ActivationType::SIGMOID),
         new LinearLayer(4, 1),
         new ActivationLayer(1, ActivationLayer::ActivationType::SIGMOID)
@@ -46,7 +44,7 @@ int main()
 
     float target = 0.5f;
     float learning_rate = 0.01f;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
         // Perform forward pass
         nn.forward(host_activations);
 
@@ -64,17 +62,37 @@ int main()
         //     std::cout << z_value << std::endl;
         // }
 
+        // print weights gradient
+        std::vector<float> weights_gradient = nn.get_weights_gradient();
+        std::cout << "Weights gradient: " << std::endl;
+        for (float weight_gradient : weights_gradient) {
+            std::cout << weight_gradient << std::endl;
+        }
+
+        // print biases gradient
+        std::vector<float> biases_gradient = nn.get_biases_gradient();
+        std::cout << "Biases gradient: " << std::endl;
+        for (float bias_gradient : biases_gradient) {
+            std::cout << bias_gradient << std::endl;
+        }
+
+        // print input gradient
+        std::vector<float> input_gradient = nn.get_input_gradient();
+        std::cout << "Input gradient: " << std::endl;
+        for (float input_gradient : input_gradient) {
+            std::cout << input_gradient << std::endl;
+        }
+
         // print results
         std::vector<float> results = nn.get_results();
-        std::cout << "Results length: " << results.size() << std::endl;
         for (float result : results) {
             std::cout << result << std::endl;
         }
 
         // backward pass and step
+        nn.zero_gradients();
         nn.backward(target);
         nn.step(learning_rate);
-        nn.zero_gradients();
         std::cout << "Step " << i << " complete" << std::endl;
     }
 

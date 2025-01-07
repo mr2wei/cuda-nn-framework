@@ -285,6 +285,42 @@ std::vector<float> NeuralNetwork::get_biases() {
     return result;
 }
 
+std::vector<float> NeuralNetwork::get_weights_gradient() {
+    float* weights_gradient_host = new float[total_weights];
+    cudaError_t err = cudaMemcpy(weights_gradient_host, device_weights_gradient, total_weights * sizeof(float), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        delete[] weights_gradient_host;
+        throw std::runtime_error("Failed to copy weights gradient from device: " + std::string(cudaGetErrorString(err)));
+    }
+    std::vector<float> result(weights_gradient_host, weights_gradient_host + total_weights);
+    delete[] weights_gradient_host;
+    return result;
+}
+
+std::vector<float> NeuralNetwork::get_biases_gradient() {
+    float* biases_gradient_host = new float[total_b_z_a];
+    cudaError_t err = cudaMemcpy(biases_gradient_host, device_biases_gradient, total_b_z_a * sizeof(float), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        delete[] biases_gradient_host;
+        throw std::runtime_error("Failed to copy biases gradient from device: " + std::string(cudaGetErrorString(err)));
+    }
+    std::vector<float> result(biases_gradient_host, biases_gradient_host + total_b_z_a);
+    delete[] biases_gradient_host;
+    return result;
+}
+
+std::vector<float> NeuralNetwork::get_input_gradient() {
+    float* input_gradient_host = new float[total_input_gradient];
+    cudaError_t err = cudaMemcpy(input_gradient_host, device_input_gradient, total_input_gradient * sizeof(float), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        delete[] input_gradient_host;
+        throw std::runtime_error("Failed to copy input gradient from device: " + std::string(cudaGetErrorString(err)));
+    }
+    std::vector<float> result(input_gradient_host, input_gradient_host + total_input_gradient);
+    delete[] input_gradient_host;
+    return result;
+}
+
 std::vector<float> NeuralNetwork::get_results() {
     // Get all values from device
     std::vector<float> activations = get_activations();
