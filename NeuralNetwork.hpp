@@ -31,6 +31,10 @@ public:
     std::vector<float> get_weights();
     std::vector<float> get_biases();
     std::vector<float> get_results();
+    std::vector<float> get_weights_gradient();
+    std::vector<float> get_biases_gradient();
+    std::vector<float> get_input_gradient();
+
     float get_loss(std::vector<float> target);
     float get_loss(float target);
 
