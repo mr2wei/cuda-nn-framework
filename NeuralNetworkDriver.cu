@@ -34,9 +34,7 @@ int main()
 
     // Create layers
     std::vector<NNLayer*> layers = {
-        new LinearLayer(8, 6),
-        new ActivationLayer(6, ActivationLayer::ActivationType::SIGMOID),
-        new LinearLayer(6, 4),
+        new LinearLayer(8, 4),
         new ActivationLayer(4, ActivationLayer::ActivationType::SIGMOID),
         new LinearLayer(4, 1),
         new ActivationLayer(1, ActivationLayer::ActivationType::SIGMOID)
@@ -45,10 +43,10 @@ int main()
     // Create neural network with specific weights and biases
     NeuralNetwork nn(layers, host_weights, host_biases);
 
-    Optimizer optimizer(&nn, 0.001f, Optimizer::OptimizerType::SGD);
+    Optimizer optimizer(&nn, 0.01f, Optimizer::OptimizerType::SGD, Optimizer::LossType::MAE);
 
     float target = 0.5f;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
         // Perform forward pass
         nn.forward(host_activations);
 
@@ -68,15 +66,36 @@ int main()
 
         // print results
         std::vector<float> results = nn.get_results();
-        std::cout << "Results length: " << results.size() << std::endl;
+        std::cout << "Results: " << std::endl;
         for (float result : results) {
             std::cout << result << std::endl;
         }
 
+        // print weights gradient
+        // std::vector<float> weights_gradient = optimizer.get_weights_gradient();
+        // std::cout << "Weights gradient: " << std::endl;
+        // for (float gradient : weights_gradient) {
+        //     std::cout << gradient << std::endl;
+        // }
+
+        // print biases gradient
+        // std::vector<float> biases_gradient = optimizer.get_biases_gradient();
+        // std::cout << "Biases gradient: " << std::endl;
+        // for (float gradient : biases_gradient) {
+        //     std::cout << gradient << std::endl;
+        // }
+
+        // print input gradient
+        // std::vector<float> input_gradient = optimizer.get_input_gradient();
+        // std::cout << "Input gradient: " << std::endl;
+        // for (float gradient : input_gradient) {
+        //     std::cout << gradient << std::endl;
+        // }
+
         // backward pass and step
+        optimizer.zero_grad();
         optimizer.backward(target);
         optimizer.step();
-        optimizer.zero_grad();
         std::cout << "Step " << i << " complete" << std::endl;
     }
 

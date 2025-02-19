@@ -8,6 +8,7 @@
 #include "NNLayer.hpp"
 #include "ActivationLayer.hpp"  
 #include "LinearLayer.hpp"
+#include "Optimizer.hpp"
 
 // Function to read CSV data into a vector of floats
 std::vector<std::vector<float>> read_csv(const std::string& filename) {
@@ -72,6 +73,8 @@ int main() {
     // Initialize the neural network
     NeuralNetwork nn(layers);
 
+    Optimizer optimizer(&nn, 0.00001f, Optimizer::OptimizerType::SGD, Optimizer::LossType::MAE);
+
     std::cout << "Initial Run:" << std::endl;
     float average_loss = 0;
     for (int i = 0; i < validation_inputs.size(); i++) {
@@ -84,15 +87,15 @@ int main() {
     // optimise 
     std::cout << "Optimising..." << std::endl;
     std::cout << "Training inputs size: " << training_inputs.size() << std::endl;
-    int num_epochs = 10;
+    int num_epochs = 100;
     int rand_index = rand() % training_inputs.size();
     for (int i = 0; i < num_epochs; i++) {
         for (int j = 0; j < training_inputs.size(); j++) {
             // std::cout << "Iteration " << j << " with index " << rand_index << std::endl;
             nn.forward(training_inputs[rand_index].data());
-            nn.backward(training_targets[rand_index]);
-            nn.step(0.00001);
-            nn.zero_gradients();
+            optimizer.backward(training_targets[rand_index]);
+            optimizer.step();
+            optimizer.zero_grad();
             rand_index = rand() % training_inputs.size();
             float result = nn.get_results()[0];
             if (std::isnan(result)) {
