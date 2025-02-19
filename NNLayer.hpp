@@ -9,9 +9,6 @@ public:
     float* biases;
     float* z_values;
     float* activations;
-    float* weights_gradient;
-    float* biases_gradient;
-    float* input_gradient;
     float* prev_input;
     bool is_activation_layer;
     char type;
@@ -25,8 +22,7 @@ public:
     {} // only for activation functions
 
     virtual void forward(float* input) = 0;
-    virtual void backward(float* output_gradient) = 0;
-    virtual void step(float learning_rate) = 0;
+    virtual void backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient) = 0;
 };
 
 #endif

@@ -96,7 +96,7 @@ void LinearLayer::forward(float* input) {
     cudaDeviceSynchronize();
 }
 
-void LinearLayer::backward(float* output_gradient) {
+void LinearLayer::backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient) {
     // if the arrays are not allocated/defined, raise an error
     if (weights_gradient == nullptr || biases_gradient == nullptr || input_gradient == nullptr) {
         throw std::runtime_error("Arrays are not allocated/defined");
@@ -148,17 +148,4 @@ void LinearLayer::backward(float* output_gradient) {
     if (error != cudaSuccess) {
         throw std::runtime_error("Error freeing weights_transposed: " + std::string(cudaGetErrorString(error)));
     }
-}
-
-
-void LinearLayer::step(float learning_rate) {
-    // update weights and biases
-    // Update weights using gradient descent
-    int total_weights = num_outputs * num_inputs;
-    int threads_per_block = 256;
-    int blocks = (total_weights + threads_per_block - 1) / threads_per_block;
-
-    // Launch kernel to update weights and biases
-    update_weights_kernel<<<blocks, threads_per_block>>>(weights, weights_gradient, biases, biases_gradient, learning_rate, total_weights, num_outputs);
-    cudaDeviceSynchronize();
 }

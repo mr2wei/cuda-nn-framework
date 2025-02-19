@@ -53,9 +53,6 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
     cudaMalloc(&device_biases, total_b_z_a * sizeof(float));
     cudaMalloc(&device_z_values, total_b_z_a * sizeof(float));
     cudaMalloc(&device_activations, total_b_z_a * sizeof(float));
-    cudaMalloc(&device_weights_gradient, total_weights * sizeof(float));
-    cudaMalloc(&device_biases_gradient, total_b_z_a * sizeof(float));
-    cudaMalloc(&device_input_gradient, total_input_gradient * sizeof(float));
 
     // Copy weights, biases, z_values, and activations to device if provided
     if (host_weights && host_biases) {
@@ -80,9 +77,6 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
         layers[i]->biases = device_biases + b_z_a_offset;
         layers[i]->z_values = device_z_values + b_z_a_offset;
         layers[i]->activations = device_activations + b_z_a_offset;
-        layers[i]->input_gradient = device_input_gradient + input_gradient_offset;
-        layers[i]->weights_gradient = device_weights_gradient + weights_offset;
-        layers[i]->biases_gradient = device_biases_gradient + b_z_a_offset;
 
         if (!layers[i]->is_activation_layer) {
             weights_offset += layers[i]->num_inputs * layers[i]->num_outputs;
@@ -93,8 +87,6 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
         if (!next_layer_is_activation) {
             b_z_a_offset += layers[i]->num_outputs;
         }
-
-        input_gradient_offset += layers[i]->num_inputs;
     }
 
     if (rand_weights_biases) {
@@ -159,78 +151,6 @@ void NeuralNetwork::forward(float* input) {
     }
 
     cudaFree(device_input);
-}
-
-void NeuralNetwork::backward(std::vector<float> target) {
-    // calculate derivative of loss function
-    std::vector<float> results = get_results();
-    float* loss_gradient = new float[layers.back()->num_outputs];
-    for (int i = 0; i < layers.back()->num_outputs; i++) {
-        loss_gradient[i] = (2.0f / results.size()) * (results[i] - target[i]);
-    }
-
-    float* device_loss_gradient;
-    cudaError_t error = cudaMalloc(&device_loss_gradient, layers.back()->num_outputs * sizeof(float));
-    if (error != cudaSuccess) {
-        delete[] loss_gradient;
-        throw std::runtime_error("Error allocating device_loss_gradient: " + std::string(cudaGetErrorString(error)));
-    }
-
-    error = cudaMemcpy(device_loss_gradient, loss_gradient, layers.back()->num_outputs * sizeof(float), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess) {
-        cudaFree(device_loss_gradient);
-        delete[] loss_gradient;
-        throw std::runtime_error("Error copying loss gradient to device: " + std::string(cudaGetErrorString(error)));
-    }
-
-    float* current_loss_gradient = device_loss_gradient;
-
-    // backward pass through the network
-    for (int i = layers.size() - 1; i >= 0; i--) {
-        layers[i]->backward(current_loss_gradient);
-        error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            cudaFree(device_loss_gradient);
-            delete[] loss_gradient;
-            throw std::runtime_error("Error in backward pass for layer " + std::to_string(i) + ": " + std::string(cudaGetErrorString(error)));
-        }
-        current_loss_gradient = layers[i]->input_gradient;
-    }
-
-    error = cudaFree(device_loss_gradient);
-    if (error != cudaSuccess) {
-        delete[] loss_gradient;
-        throw std::runtime_error("Error freeing device_loss_gradient: " + std::string(cudaGetErrorString(error)));
-    }
-    delete[] loss_gradient;
-}
-
-void NeuralNetwork::backward(float target) {
-    std::vector<float> target_vector(1, target);
-    backward(target_vector);
-}
-
-void NeuralNetwork::step(float learning_rate) {
-    for (int i = 0; i < layers.size(); i++) {
-        layers[i]->step(learning_rate);
-    }
-}
-
-void NeuralNetwork::zero_gradients() {
-    cudaError_t error = cudaMemset(device_weights_gradient, 0, total_weights * sizeof(float));
-    if (error != cudaSuccess) {
-        throw std::runtime_error("Error zeroing weights gradient: " + std::string(cudaGetErrorString(error)));
-    }
-
-    error = cudaMemset(device_biases_gradient, 0, total_b_z_a * sizeof(float));
-    if (error != cudaSuccess) {
-        throw std::runtime_error("Error zeroing biases gradient: " + std::string(cudaGetErrorString(error)));
-    }
-
-    error = cudaMemset(device_input_gradient, 0, total_input_gradient * sizeof(float));
-    if (error != cudaSuccess) {
-        throw std::runtime_error("Error zeroing input gradient: " + std::string(cudaGetErrorString(error)));
-    }
 }
 
 std::vector<float> NeuralNetwork::get_activations() {

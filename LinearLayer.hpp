@@ -11,8 +11,7 @@ public:
     {}
 
     void forward(float* input) override;
-    void backward(float* output_gradient) override;
-    void step(float learning_rate) override;
+    void backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient);
 };
 
 #endif
