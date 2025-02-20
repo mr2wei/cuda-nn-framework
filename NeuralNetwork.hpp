@@ -31,6 +31,7 @@ public:
     std::vector<float> get_weights();
     std::vector<float> get_biases();
     std::vector<float> get_results();
+    
     float get_loss(std::vector<float> target);
     float get_loss(float target);
 

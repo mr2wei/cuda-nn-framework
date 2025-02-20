@@ -208,6 +208,7 @@ std::vector<float> NeuralNetwork::get_biases() {
     return result;
 }
 
+
 std::vector<float> NeuralNetwork::get_results() {
     // Get all values from device
     std::vector<float> activations = get_activations();

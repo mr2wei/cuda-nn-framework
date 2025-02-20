@@ -1,14 +1,15 @@
-﻿#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include "NNLayer.hpp"  
-#include "NeuralNetwork.hpp"
-#include "LinearLayer.hpp"
-#include "ActivationLayer.hpp"
-#include "Optimizer.hpp"
+﻿#include <stdio.h>
 
-#include <stdio.h>
-#include <vector>
 #include <iostream>
+#include <vector>
+
+#include "ActivationLayer.hpp"
+#include "LinearLayer.hpp"
+#include "NNLayer.hpp"
+#include "NeuralNetwork.hpp"
+#include "Optimizer.hpp"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
 int main()
 {
