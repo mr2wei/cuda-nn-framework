@@ -22,7 +22,8 @@ __global__ void ADAM_update_weights_kernel(
     float* weights, float* weights_gradient, float* biases, float* biases_gradient,
     float* weights_first_moment, float* weights_second_moment, float* biases_first_moment, float* biases_second_moment,
     float learning_rate, int total_weights, int num_outputs,
-    float beta1, float beta2, float epsilon, int iteration
+    float beta1, float beta2, float epsilon,
+    float beta1_pow_iteration, float beta2_pow_iteration
 )
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -30,8 +31,8 @@ __global__ void ADAM_update_weights_kernel(
         weights_first_moment[index] = beta1 * weights_first_moment[index] + (1 - beta1) * weights_gradient[index];
         weights_second_moment[index] = beta2 * weights_second_moment[index] + (1 - beta2) * weights_gradient[index] * weights_gradient[index];
         
-        float m_hat = weights_first_moment[index] / (1 - pow(beta1, iteration + 1));
-        float v_hat = weights_second_moment[index] / (1 - pow(beta2, iteration + 1));
+        float m_hat = weights_first_moment[index] / (1 - beta1_pow_iteration);
+        float v_hat = weights_second_moment[index] / (1 - beta2_pow_iteration);
         weights[index] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
     }
 
@@ -39,8 +40,8 @@ __global__ void ADAM_update_weights_kernel(
         biases_first_moment[index] = beta1 * biases_first_moment[index] + (1 - beta1) * biases_gradient[index];
         biases_second_moment[index] = beta2 * biases_second_moment[index] + (1 - beta2) * biases_gradient[index] * biases_gradient[index];
         
-        float m_hat = biases_first_moment[index] / (1 - pow(beta1, iteration + 1));
-        float v_hat = biases_second_moment[index] / (1 - pow(beta2, iteration + 1));
+        float m_hat = biases_first_moment[index] / (1 - beta1_pow_iteration);
+        float v_hat = biases_second_moment[index] / (1 - beta2_pow_iteration);
         biases[index] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
     }
 }
@@ -144,6 +145,9 @@ void Optimizer::SGD_step() {
 
 void Optimizer::ADAM_step() {
     int weights_gradient_offset = 0, biases_gradient_offset = 0;
+    float beta1_pow_iteration = pow(beta1, adam_iteration + 1);
+    float beta2_pow_iteration = pow(beta2, adam_iteration + 1);
+    
     for (int i = 0; i < nn->layers.size(); i++) {
         if (!nn->layers[i]->is_activation_layer) {
             int total_weights = nn->layers[i]->num_outputs * nn->layers[i]->num_inputs;
@@ -163,14 +167,16 @@ void Optimizer::ADAM_step() {
                 nn->layers[i]->num_outputs,
                 beta1, 
                 beta2, 
-                epsilon, 
-                adam_iteration);
-            cudaDeviceSynchronize();
+                epsilon,
+                beta1_pow_iteration,
+                beta2_pow_iteration);
             weights_gradient_offset += total_weights;
             biases_gradient_offset += nn->layers[i]->num_outputs;
 
         }
     }
+    
+    cudaDeviceSynchronize();
     adam_iteration++;
 }
 
@@ -215,6 +221,10 @@ void Optimizer::backward(std::vector<float> target) {
         }
         input_gradient_offset -= nn->layers[i]->num_inputs;
 
+        // std::cout << "weights_gradient_offset: " << weights_gradient_offset << std::endl;
+        // std::cout << "biases_gradient_offset: " << biases_gradient_offset << std::endl;
+        // std::cout << "input_gradient_offset: " << input_gradient_offset << std::endl;
+
         nn->layers[i]->backward(current_loss_gradient, 
                                 device_input_gradient + input_gradient_offset, 
                                 device_weights_gradient + weights_gradient_offset, 
@@ -239,11 +249,6 @@ void Optimizer::zero_grad() {
     cudaMemset(device_input_gradient, 0, nn->total_input_gradient * sizeof(float));
     cudaMemset(device_weights_gradient, 0, nn->total_weights * sizeof(float));
     cudaMemset(device_biases_gradient, 0, nn->total_b_z_a * sizeof(float));
-    cudaMemset(device_weights_first_moment, 0, nn->total_weights * sizeof(float));
-    cudaMemset(device_weights_second_moment, 0, nn->total_weights * sizeof(float));
-    cudaMemset(device_biases_first_moment, 0, nn->total_b_z_a * sizeof(float));
-    cudaMemset(device_biases_second_moment, 0, nn->total_b_z_a * sizeof(float));
-
     // check for any errors
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
@@ -269,6 +274,11 @@ float Optimizer::get_loss(std::vector<float> target) {
         case LossType::MAE:
             return MAE_loss(target);
     }
+}
+
+float Optimizer::get_loss(float target) {
+    std::vector<float> target_vector(1, target);
+    return get_loss(target_vector);
 }
 
 std::vector<float> Optimizer::get_input_gradient() {
@@ -299,4 +309,26 @@ std::vector<float> Optimizer::get_biases_gradient() {
     return biases_gradient;
 }
 
+std::vector<float> Optimizer::get_weights_first_moment() {
+    std::vector<float> weights_first_moment(nn->total_weights);
+    cudaMemcpy(weights_first_moment.data(), device_weights_first_moment, nn->total_weights * sizeof(float), cudaMemcpyDeviceToHost);
+    return weights_first_moment;
+}   
 
+std::vector<float> Optimizer::get_weights_second_moment() {
+    std::vector<float> weights_second_moment(nn->total_weights);
+    cudaMemcpy(weights_second_moment.data(), device_weights_second_moment, nn->total_weights * sizeof(float), cudaMemcpyDeviceToHost);
+    return weights_second_moment;
+}   
+
+std::vector<float> Optimizer::get_biases_first_moment() {
+    std::vector<float> biases_first_moment(nn->total_b_z_a);
+    cudaMemcpy(biases_first_moment.data(), device_biases_first_moment, nn->total_b_z_a * sizeof(float), cudaMemcpyDeviceToHost);
+    return biases_first_moment;
+}   
+
+std::vector<float> Optimizer::get_biases_second_moment() {
+    std::vector<float> biases_second_moment(nn->total_b_z_a);
+    cudaMemcpy(biases_second_moment.data(), device_biases_second_moment, nn->total_b_z_a * sizeof(float), cudaMemcpyDeviceToHost);
+    return biases_second_moment;
+}      

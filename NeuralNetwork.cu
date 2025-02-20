@@ -79,6 +79,8 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
         layers[i]->z_values = device_z_values + b_z_a_offset;
         layers[i]->activations = device_activations + b_z_a_offset;
 
+        cudaMalloc(&layers[i]->prev_input, layers[i]->num_inputs * sizeof(float));
+
         if (!layers[i]->is_activation_layer) {
             weights_offset += layers[i]->num_inputs * layers[i]->num_outputs;
         }

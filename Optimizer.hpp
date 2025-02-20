@@ -55,15 +55,16 @@ public:
     void step();
     void zero_grad();
 
-
-
-
     float get_loss(std::vector<float> target);
     float get_loss(float target);
 
     std::vector<float> get_input_gradient();
     std::vector<float> get_weights_gradient();
     std::vector<float> get_biases_gradient();
+    std::vector<float> get_weights_first_moment();
+    std::vector<float> get_weights_second_moment();
+    std::vector<float> get_biases_first_moment();
+    std::vector<float> get_biases_second_moment();
 };
 
 #endif
