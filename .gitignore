@@ -9,6 +9,7 @@ NNFramework.vcxproj.filters
 NNFramework.vcxproj.user
 test_with_pytorch.py
 validation_results.csv
+validation_results_py.csv
 verify_res.py
 weights.txt
 x64/

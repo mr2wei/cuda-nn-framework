@@ -8,6 +8,7 @@
 #include "NNLayer.hpp"
 #include "ActivationLayer.hpp"  
 #include "LinearLayer.hpp"
+#include "Optimizer.hpp"
 
 // Function to read CSV data into a vector of floats
 std::vector<std::vector<float>> read_csv(const std::string& filename) {
@@ -64,19 +65,31 @@ int main() {
         }
     }
 
+    std::cout << "Num inputs: " << inputs[0].size() << std::endl;
+
     // Create layers for the neural network
     std::vector<NNLayer*> layers = {
-        new LinearLayer(3, 1)
+        new LinearLayer(inputs[0].size(), 256),
+        new ActivationLayer(256, ActivationLayer::ActivationType::SIGMOID),
+        new LinearLayer(256, 128),
+        new ActivationLayer(128, ActivationLayer::ActivationType::SIGMOID),
+        new LinearLayer(128, 64),
+        new ActivationLayer(64, ActivationLayer::ActivationType::SIGMOID),
+        new LinearLayer(64, 32),
+        new ActivationLayer(32, ActivationLayer::ActivationType::SIGMOID),
+        new LinearLayer(32, 1)
     };
 
     // Initialize the neural network
     NeuralNetwork nn(layers);
 
+    Optimizer optimizer(&nn, 0.001f, Optimizer::OptimizerType::ADAM, Optimizer::LossType::MAE);
+
     std::cout << "Initial Run:" << std::endl;
     float average_loss = 0;
     for (int i = 0; i < validation_inputs.size(); i++) {
         nn.forward(validation_inputs[i].data());
-        average_loss += nn.get_loss(validation_targets[i]);
+        average_loss += optimizer.get_loss(validation_targets[i]);
     }
     average_loss /= validation_inputs.size();
     std::cout << "Average loss: " << average_loss << std::endl;
@@ -84,22 +97,22 @@ int main() {
     // optimise 
     std::cout << "Optimising..." << std::endl;
     std::cout << "Training inputs size: " << training_inputs.size() << std::endl;
-    int num_epochs = 10;
-    int rand_index = rand() % training_inputs.size();
+    int num_epochs = 100;
+    // int rand_index = rand() % training_inputs.size();
     for (int i = 0; i < num_epochs; i++) {
         for (int j = 0; j < training_inputs.size(); j++) {
             // std::cout << "Iteration " << j << " with index " << rand_index << std::endl;
-            nn.forward(training_inputs[rand_index].data());
-            nn.backward(training_targets[rand_index]);
-            nn.step(0.00001);
-            nn.zero_gradients();
-            rand_index = rand() % training_inputs.size();
+            optimizer.zero_grad();
+            nn.forward(training_inputs[j].data());
+            optimizer.backward(training_targets[j]);
+            optimizer.step();
+            // rand_index = rand() % training_inputs.size();
             float result = nn.get_results()[0];
             if (std::isnan(result)) {
-                std::cout << "NaN detected on iteration " << i << " with index " << rand_index << std::endl;
+                std::cout << "NaN detected on iteration " << i << " with index " << j << std::endl;
                 return 0;
             } else if (std::isinf(result)) {
-                std::cout << "Inf detected on iteration " << i << " with index " << rand_index << std::endl;
+                std::cout << "Inf detected on iteration " << i << " with index " << j << std::endl;
                 return 0;
             }
         }
@@ -110,7 +123,7 @@ int main() {
     average_loss = 0;
     for (int i = 0; i < validation_inputs.size(); i++) {
         nn.forward(validation_inputs[i].data());
-        average_loss += nn.get_loss(validation_targets[i]);
+        average_loss += optimizer.get_loss(validation_targets[i]);
     }
     average_loss /= validation_inputs.size();
     std::cout << "New average loss: " << average_loss << std::endl;

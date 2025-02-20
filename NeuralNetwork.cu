@@ -11,23 +11,24 @@
 
 // Helper function to initialize common parts of the constructors
 void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights, float* host_biases) {
+    total_weights = 0;
+    total_b_z_a = 0;
+    total_input_gradient = 0;
+    
     for (NNLayer* layer : layers) {
         if (!layer->is_activation_layer) {
             shape.push_back(layer->num_inputs);
         }
+        total_input_gradient += layer->num_inputs;
     }
     shape.push_back(layers.back()->num_outputs);
 
-    total_weights = 0;
-    total_b_z_a = 0;
-    total_input_gradient = 0;
+    
     for (int i = 0; i < shape.size() - 1; i++) {
         total_weights += shape[i] * shape[i + 1];
         total_b_z_a += shape[i + 1];
-        total_input_gradient += shape[i];
     }
 
-    total_input_gradient *= 2;
 
     bool rand_weights_biases = false;
 
@@ -77,6 +78,8 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
         layers[i]->biases = device_biases + b_z_a_offset;
         layers[i]->z_values = device_z_values + b_z_a_offset;
         layers[i]->activations = device_activations + b_z_a_offset;
+
+        cudaMalloc(&layers[i]->prev_input, layers[i]->num_inputs * sizeof(float));
 
         if (!layers[i]->is_activation_layer) {
             weights_offset += layers[i]->num_inputs * layers[i]->num_outputs;

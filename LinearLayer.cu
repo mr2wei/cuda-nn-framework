@@ -2,6 +2,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdexcept>
+// #include <iostream>
 
 #define TILE_SIZE 32
 
@@ -71,27 +72,13 @@ __global__ void linear_layer_backward_inputs_kernal(
     }
 }
 
-__global__ void update_weights_kernel(
-    float* weights, float* weights_gradient, float* biases, float* biases_gradient,
-    float learning_rate, int total_weights, int num_outputs
-)
-{
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < total_weights) {
-        weights[index] -= learning_rate * weights_gradient[index];
-    }
-
-    if (index < num_outputs) {
-        biases[index] -= learning_rate * biases_gradient[index];
-    }
-}
-
 void LinearLayer::forward(float* input) {
     // if the arrays are not allocated/defined, raise an error
     if (weights == nullptr || biases == nullptr || z_values == nullptr || activations == nullptr) {
         throw std::runtime_error("Arrays are not allocated/defined");
     }
-    prev_input = input;
+    // prev_input = input;
+    cudaMemcpy(prev_input, input, num_inputs * sizeof(float), cudaMemcpyDeviceToDevice);
     linear_layer_kernal<<< (num_outputs + 255) / 256, 256 >>>(weights, biases, input, z_values, num_outputs, num_inputs);
     cudaDeviceSynchronize();
 }
@@ -104,9 +91,9 @@ void LinearLayer::backward(float* output_gradient, float* input_gradient, float*
 
     // bias gradient is just the output gradient
     cudaError_t error = cudaMemcpy(biases_gradient, output_gradient, num_outputs * sizeof(float), cudaMemcpyDeviceToDevice);
-    if (error != cudaSuccess) {
-        throw std::runtime_error("Error copying biases gradient: " + std::string(cudaGetErrorString(error)));
-    }
+    // if (error != cudaSuccess) {
+    //     throw std::runtime_error("Error copying biases gradient: " + std::string(cudaGetErrorString(error)));
+    // }
 
     int threads_per_block = 256;
     int blocks = (num_outputs * num_inputs + threads_per_block - 1) / threads_per_block;
@@ -114,10 +101,11 @@ void LinearLayer::backward(float* output_gradient, float* input_gradient, float*
     // transpose weights
     float* weights_transposed;
     error = cudaMalloc(&weights_transposed, num_outputs * num_inputs * sizeof(float));
-    if (error != cudaSuccess) {
-        throw std::runtime_error("Error allocating weights_transposed: " + std::string(cudaGetErrorString(error)));
-    }
+    // if (error != cudaSuccess) {
+    //     throw std::runtime_error("Error allocating weights_transposed: " + std::string(cudaGetErrorString(error)));
+    // }
 
+    // got the transpose kernel from somewhere online
     dim3 blockSize(TILE_SIZE, TILE_SIZE);
     dim3 gridSize((num_inputs + TILE_SIZE - 1) / TILE_SIZE, (num_outputs + TILE_SIZE - 1) / TILE_SIZE);
     transpose<<<gridSize, blockSize>>>(weights, weights_transposed, num_inputs, num_outputs);
@@ -127,6 +115,16 @@ void LinearLayer::backward(float* output_gradient, float* input_gradient, float*
         cudaFree(weights_transposed);
         throw std::runtime_error("Error in transpose kernel: " + std::string(cudaGetErrorString(error)));
     }
+
+    // Print prev_input values
+    float* host_prev_input = new float[num_inputs];
+    cudaMemcpy(host_prev_input, prev_input, num_inputs * sizeof(float), cudaMemcpyDeviceToHost);
+    // std::cout << "prev_input: ";
+    // for (int i = 0; i < num_inputs; i++) {
+    //     std::cout << host_prev_input[i] << ", ";
+    // }
+    // std::cout << std::endl;
+    // delete[] host_prev_input;
 
     linear_layer_backward_weights_kernal<<<blocks, threads_per_block>>>(weights_gradient, output_gradient, prev_input, num_outputs, num_inputs);
     cudaDeviceSynchronize();
