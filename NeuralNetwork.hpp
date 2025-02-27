@@ -11,6 +11,8 @@ public:
 
     std::vector<int> shape;
 
+    int batch_size;
+
     size_t total_weights, total_b_z_a, total_input_gradient;
 
     float* device_weights;
@@ -18,13 +20,15 @@ public:
     float* device_z_values;
     float* device_activations;
 
-    NeuralNetwork(std::vector<NNLayer*> layers);
-    NeuralNetwork(std::vector<NNLayer*> layers, float* host_weights, float* host_biases);
+    NeuralNetwork(std::vector<NNLayer*> layers, int batch_size = 64);
+    NeuralNetwork(std::vector<NNLayer*> layers, float* host_weights, float* host_biases, int batch_size = 64);
     ~NeuralNetwork();
 
     void initialize(std::vector<NNLayer*> layers, float* host_weights, float* host_biases);
     void glorot_uniform_weights(int input_size, int output_size, float* host_weights, int offset);
     void forward(float* input); 
+    void forward(std::vector<float> input);
+    void forward(std::vector<std::vector<float>> input);
 
     std::vector<float> get_activations();
     std::vector<float> get_z_values();

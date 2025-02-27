@@ -10,8 +10,8 @@ public:
     : NNLayer(inputs, outputs, 'L')
     {}
 
-    void forward(float* input) override;
-    void backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient);
+    void forward(float* input, int batch_size) override;
+    void backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient, int batch_size);
 };
 
 #endif
