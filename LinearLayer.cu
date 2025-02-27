@@ -9,16 +9,21 @@
 __global__ void linear_layer_kernal(
     float* weight_matrix, float* biases, 
     float* x_inputs, float* z_values,
-    int num_output_neurons, int num_input_neurons
+    int num_output_neurons, int num_input_neurons,
+    int batch_size
 )
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < num_output_neurons)
+    if (index < num_output_neurons * batch_size)
     {
-        z_values[index] = biases[index];
+        int batch_index = index / num_output_neurons;
+        int neuron_index = index % num_output_neurons;
+
+        z_values[index] = biases[neuron_index];
         for (int i = 0; i < num_input_neurons; i++)
         {
-            z_values[index] += weight_matrix[index * num_input_neurons + i] * x_inputs[i];
+            z_values[index] += weight_matrix[neuron_index * num_input_neurons + i] * 
+                               x_inputs[batch_index * num_input_neurons + i];
         }
     }
 }
@@ -72,18 +77,18 @@ __global__ void linear_layer_backward_inputs_kernal(
     }
 }
 
-void LinearLayer::forward(float* input) {
+void LinearLayer::forward(float* input, int batch_size) {
     // if the arrays are not allocated/defined, raise an error
     if (weights == nullptr || biases == nullptr || z_values == nullptr || activations == nullptr) {
         throw std::runtime_error("Arrays are not allocated/defined");
     }
     // prev_input = input;
-    cudaMemcpy(prev_input, input, num_inputs * sizeof(float), cudaMemcpyDeviceToDevice);
-    linear_layer_kernal<<< (num_outputs + 255) / 256, 256 >>>(weights, biases, input, z_values, num_outputs, num_inputs);
+    cudaMemcpy(prev_input, input, num_inputs * sizeof(float) * batch_size, cudaMemcpyDeviceToDevice);
+    linear_layer_kernal<<< (num_outputs * batch_size + 255) / 256, 256 >>>(weights, biases, input, z_values, num_outputs, num_inputs, batch_size);
     cudaDeviceSynchronize();
 }
 
-void LinearLayer::backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient) {
+void LinearLayer::backward(float* output_gradient, float* input_gradient, float* weights_gradient, float* biases_gradient, int batch_size) {
     // if the arrays are not allocated/defined, raise an error
     if (weights_gradient == nullptr || biases_gradient == nullptr || input_gradient == nullptr) {
         throw std::runtime_error("Arrays are not allocated/defined");

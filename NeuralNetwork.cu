@@ -52,8 +52,8 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
     // Allocate memory for weights, biases, z_values, and activations
     cudaMalloc(&device_weights, total_weights * sizeof(float));
     cudaMalloc(&device_biases, total_b_z_a * sizeof(float));
-    cudaMalloc(&device_z_values, total_b_z_a * sizeof(float));
-    cudaMalloc(&device_activations, total_b_z_a * sizeof(float));
+    cudaMalloc(&device_z_values, total_b_z_a * sizeof(float) * batch_size);
+    cudaMalloc(&device_activations, total_b_z_a * sizeof(float) * batch_size);
 
     // Copy weights, biases, z_values, and activations to device if provided
     if (host_weights && host_biases) {
@@ -76,10 +76,10 @@ void NeuralNetwork::initialize(std::vector<NNLayer*> layers, float* host_weights
 
         layers[i]->weights = device_weights + weights_offset;
         layers[i]->biases = device_biases + b_z_a_offset;
-        layers[i]->z_values = device_z_values + b_z_a_offset;
-        layers[i]->activations = device_activations + b_z_a_offset;
+        layers[i]->z_values = device_z_values + b_z_a_offset * batch_size;
+        layers[i]->activations = device_activations + b_z_a_offset * batch_size;
 
-        cudaMalloc(&layers[i]->prev_input, layers[i]->num_inputs * sizeof(float));
+        cudaMalloc(&layers[i]->prev_input, layers[i]->num_inputs * sizeof(float) * batch_size);
 
         if (!layers[i]->is_activation_layer) {
             weights_offset += layers[i]->num_inputs * layers[i]->num_outputs;
@@ -108,13 +108,13 @@ void NeuralNetwork::glorot_uniform_weights(int input_size, int output_size, floa
     }
 }
 
-NeuralNetwork::NeuralNetwork(std::vector<NNLayer*> layers)
-    : layers(layers) {
+NeuralNetwork::NeuralNetwork(std::vector<NNLayer*> layers, int batch_size)
+    : layers(layers), batch_size(batch_size) {
     initialize(layers, nullptr, nullptr);
 }
 
-NeuralNetwork::NeuralNetwork(std::vector<NNLayer*> layers, float* host_weights, float* host_biases)
-    : layers(layers) {
+NeuralNetwork::NeuralNetwork(std::vector<NNLayer*> layers, float* host_weights, float* host_biases, int batch_size)
+    : layers(layers), batch_size(batch_size) {
     initialize(layers, host_weights, host_biases);
 }
 
@@ -126,14 +126,14 @@ NeuralNetwork::~NeuralNetwork() {
 }
 
 /**
- * @brief Forward pass through the neural network
+ * @brief Forward pass through the neural network (1 input)
  * 
  * @param input: input to the neural network
  */
 void NeuralNetwork::forward(float* input) {
     // reset activations and z_values
-    cudaMemset(device_activations, 0, total_b_z_a * sizeof(float));
-    cudaMemset(device_z_values, 0, total_b_z_a * sizeof(float));
+    cudaMemset(device_activations, 0, total_b_z_a * sizeof(float) * batch_size);
+    cudaMemset(device_z_values, 0, total_b_z_a * sizeof(float) * batch_size);
 
     // Allocate device memory for input
     float* device_input;
@@ -146,14 +146,38 @@ void NeuralNetwork::forward(float* input) {
         NNLayer* layer = layers[i];
         if (layer->is_activation_layer) {
             // For activation layers, the z_values are the input
-            layer->forward(layer->z_values);
+            layer->forward(layer->z_values, 1);
         } else {
-            layer->forward(current_input);
+            layer->forward(current_input, 1);
         }
         current_input = layer->activations;
     }
 
     cudaFree(device_input);
+}
+
+/**
+ * @brief Forward pass through the neural network (1 input)
+ * 
+ * @param input: input to the neural network
+ */
+void NeuralNetwork::forward(std::vector<float> input) {
+    forward(input.data());
+}
+
+/**
+ * @brief Forward pass through the neural network (batch input)
+ * 
+ * @param input: input to the neural network
+ */
+void NeuralNetwork::forward(std::vector<std::vector<float>> input) {
+    // TODO: implement this
+    if (input.size() == 1) {
+        forward(input[0]);
+    } 
+
+    // throw not implemented error
+    throw std::runtime_error("Not implemented");
 }
 
 std::vector<float> NeuralNetwork::get_activations() {
