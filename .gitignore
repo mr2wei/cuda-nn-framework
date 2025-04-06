@@ -15,3 +15,5 @@ weights.txt
 x64/
 .vscode/
 .vs/
+*.o
+regression_test

@@ -69,21 +69,19 @@ int main() {
 
     // Create layers for the neural network
     std::vector<NNLayer*> layers = {
-        new LinearLayer(inputs[0].size(), 256),
-        new ActivationLayer(256, ActivationLayer::ActivationType::SIGMOID),
-        new LinearLayer(256, 128),
-        new ActivationLayer(128, ActivationLayer::ActivationType::SIGMOID),
+        new LinearLayer(inputs[0].size(), 128),
+        new ActivationLayer(128, ActivationLayer::ActivationType::RELU),
         new LinearLayer(128, 64),
-        new ActivationLayer(64, ActivationLayer::ActivationType::SIGMOID),
+        new ActivationLayer(64, ActivationLayer::ActivationType::RELU),
         new LinearLayer(64, 32),
-        new ActivationLayer(32, ActivationLayer::ActivationType::SIGMOID),
+        new ActivationLayer(32, ActivationLayer::ActivationType::RELU),
         new LinearLayer(32, 1)
     };
 
     // Initialize the neural network
     NeuralNetwork nn(layers);
 
-    Optimizer optimizer(&nn, 0.001f, Optimizer::OptimizerType::ADAM, Optimizer::LossType::MAE);
+    Optimizer optimizer(&nn, 0.0001f, Optimizer::OptimizerType::ADAM, Optimizer::LossType::MSE);
 
     std::cout << "Initial Run:" << std::endl;
     float average_loss = 0;
