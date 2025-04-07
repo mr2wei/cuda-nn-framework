@@ -126,7 +126,7 @@ NeuralNetwork::~NeuralNetwork() {
 }
 
 /**
- * @brief Forward pass through the neural network (1 input)
+ * @brief Forward pass through the neural network (batch input)
  * 
  * @param input: input to the neural network
  */
@@ -135,10 +135,10 @@ void NeuralNetwork::forward(float* input) {
     cudaMemset(device_activations, 0, total_b_z_a * sizeof(float) * batch_size);
     cudaMemset(device_z_values, 0, total_b_z_a * sizeof(float) * batch_size);
 
-    // Allocate device memory for input
+    // Allocate device memory for batch input
     float* device_input;
-    cudaMalloc(&device_input, layers[0]->num_inputs * sizeof(float));
-    cudaMemcpy(device_input, input, layers[0]->num_inputs * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMalloc(&device_input, layers[0]->num_inputs * sizeof(float) * batch_size);
+    cudaMemcpy(device_input, input, layers[0]->num_inputs * sizeof(float) * batch_size, cudaMemcpyHostToDevice);
     
     float* current_input = device_input;
 
@@ -146,9 +146,9 @@ void NeuralNetwork::forward(float* input) {
         NNLayer* layer = layers[i];
         if (layer->is_activation_layer) {
             // For activation layers, the z_values are the input
-            layer->forward(layer->z_values, 1);
+            layer->forward(layer->z_values, batch_size);
         } else {
-            layer->forward(current_input, 1);
+            layer->forward(current_input, batch_size);
         }
         current_input = layer->activations;
     }
@@ -157,51 +157,74 @@ void NeuralNetwork::forward(float* input) {
 }
 
 /**
- * @brief Forward pass through the neural network (1 input)
+ * @brief Forward pass through the neural network (single vector input)
  * 
  * @param input: input to the neural network
  */
 void NeuralNetwork::forward(std::vector<float> input) {
+    if (batch_size > 1) {
+        throw std::runtime_error("Cannot use single input vector with batch_size > 1");
+    }
     forward(input.data());
 }
 
 /**
  * @brief Forward pass through the neural network (batch input)
  * 
- * @param input: input to the neural network
+ * @param input: batch of inputs to the neural network
  */
 void NeuralNetwork::forward(std::vector<std::vector<float>> input) {
-    // TODO: implement this
-    if (input.size() == 1) {
-        forward(input[0]);
-    } 
-
-    // throw not implemented error
-    throw std::runtime_error("Not implemented");
+    if (input.size() != batch_size) {
+        throw std::runtime_error("Input batch size (" + std::to_string(input.size()) + 
+                                ") doesn't match network batch size (" + std::to_string(batch_size) + ")");
+    }
+    
+    // Flatten the batch input
+    std::vector<float> flattened_input;
+    flattened_input.reserve(layers[0]->num_inputs * batch_size);
+    
+    for (const auto& example : input) {
+        if (example.size() != layers[0]->num_inputs) {
+            throw std::runtime_error("Input size doesn't match network input layer size");
+        }
+        flattened_input.insert(flattened_input.end(), example.begin(), example.end());
+    }
+    
+    forward(flattened_input.data());
 }
 
-std::vector<float> NeuralNetwork::get_activations() {
-    float* activations_host = new float[total_b_z_a];
-    cudaError_t err = cudaMemcpy(activations_host, device_activations, total_b_z_a * sizeof(float), cudaMemcpyDeviceToHost);
+std::vector<std::vector<float>> NeuralNetwork::get_activations() {
+    float* activations_host = new float[total_b_z_a * batch_size];
+    cudaError_t err = cudaMemcpy(activations_host, device_activations, total_b_z_a * sizeof(float) * batch_size, cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         delete[] activations_host;
         throw std::runtime_error("Failed to copy activations from device: " + std::string(cudaGetErrorString(err)));
     }
     
-    std::vector<float> result(activations_host, activations_host + total_b_z_a);
+    std::vector<std::vector<float>> result(batch_size, std::vector<float>(total_b_z_a));
+    for (int i = 0; i < batch_size; i++) {
+        for (int j = 0; j < total_b_z_a; j++) {
+            result[i][j] = activations_host[i * total_b_z_a + j];
+        }
+    }
     delete[] activations_host;  // Clean up the temporary array
     return result;
 }
 
-std::vector<float> NeuralNetwork::get_z_values() {
-    float* z_values_host = new float[total_b_z_a];
-    cudaError_t err = cudaMemcpy(z_values_host, device_z_values, total_b_z_a * sizeof(float), cudaMemcpyDeviceToHost);
+std::vector<std::vector<float>> NeuralNetwork::get_z_values() {
+    float* z_values_host = new float[total_b_z_a * batch_size];
+    cudaError_t err = cudaMemcpy(z_values_host, device_z_values, total_b_z_a * sizeof(float) * batch_size, cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         delete[] z_values_host;
         throw std::runtime_error("Failed to copy z_values from device: " + std::string(cudaGetErrorString(err)));
     }
     
-    std::vector<float> result(z_values_host, z_values_host + total_b_z_a);
+    std::vector<std::vector<float>> result(batch_size, std::vector<float>(total_b_z_a));
+    for (int i = 0; i < batch_size; i++) {
+        for (int j = 0; j < total_b_z_a; j++) {
+            result[i][j] = z_values_host[i * total_b_z_a + j];
+        }
+    }
     delete[] z_values_host;
     return result;
 }
@@ -233,44 +256,50 @@ std::vector<float> NeuralNetwork::get_biases() {
 }
 
 
-std::vector<float> NeuralNetwork::get_results() {
-    // Get all values from device
-    std::vector<float> activations = get_activations();
-    std::vector<float> z_values = get_z_values();
-    
+std::vector<std::vector<float>> NeuralNetwork::get_results() {
     // Get number of outputs from last layer
     int num_outputs = layers.back()->num_outputs;
+    
+    // Calculate memory offset to the last layer's outputs
     int offset = total_b_z_a - num_outputs;
-
+    
     // Create result vector with proper size
-    std::vector<float> result(num_outputs);
-
-    // If last layer is activation layer, return last activations
-    // Otherwise return last z_values
-    if (layers.back()->is_activation_layer) {
-        std::copy(activations.begin() + offset, activations.end(), result.begin());
-    } else {
-        std::copy(z_values.begin() + offset, z_values.end(), result.begin());
+    std::vector<std::vector<float>> results(batch_size, std::vector<float>(num_outputs));
+    
+    // Determine which array to use (activations or z_values)
+    float* source = layers.back()->is_activation_layer ? device_activations : device_z_values;
+    
+    // Allocate temporary buffer for the results
+    float* results_host = new float[num_outputs * batch_size];
+    
+    // Copy just the output layer data from the device
+    cudaMemcpy(
+        results_host,
+        source + offset * batch_size, // Offset to last layer's data
+        num_outputs * batch_size * sizeof(float),
+        cudaMemcpyDeviceToHost
+    );
+    
+    // Reshape into batch_size x num_outputs
+    for (int i = 0; i < batch_size; i++) {
+        for (int j = 0; j < num_outputs; j++) {
+            results[i][j] = results_host[i * num_outputs + j];
+        }
     }
-
-    return result;
+    
+    delete[] results_host;
+    return results;
 }
 
-float NeuralNetwork::get_loss(std::vector<float> target) {
-    std::vector<float> results = get_results();
-    float loss = 0;
-    for (int i = 0; i < results.size(); i++) {
-        loss += pow(results[i] - target[i], 2);
+float* NeuralNetwork::get_results_pointer(int *num_outputs) {
+    if (num_outputs) {
+        *num_outputs = layers.back()->num_outputs;
     }
-    return loss / results.size();
-}
+    int offset = total_b_z_a - layers.back()->num_outputs;
 
-float NeuralNetwork::get_loss(float target) {
-    if (layers.back()->num_outputs != 1) {
-        throw std::runtime_error("Only one target value given but last layer has multiple outputs");
-    }
-    std::vector<float> results = get_results();
-    return pow(results[0] - target, 2);
+    float* source = layers.back()->is_activation_layer ? device_activations : device_z_values;
+    
+    return source + offset * batch_size;
 }
 
 void NeuralNetwork::save_model(std::string filename) {

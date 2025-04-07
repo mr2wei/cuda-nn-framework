@@ -30,14 +30,13 @@ public:
     void forward(std::vector<float> input);
     void forward(std::vector<std::vector<float>> input);
 
-    std::vector<float> get_activations();
-    std::vector<float> get_z_values();
+    std::vector<std::vector<float>> get_activations();
+    std::vector<std::vector<float>> get_z_values();
     std::vector<float> get_weights();
     std::vector<float> get_biases();
-    std::vector<float> get_results();
-    
-    float get_loss(std::vector<float> target);
-    float get_loss(float target);
+    std::vector<std::vector<float>> get_results();
+
+    float* get_results_pointer(int *num_outputs = nullptr); // num_outputs allow the function caller to get the number of outputs from the last layer
 
     void save_model(std::string filename);
 };
