@@ -52,28 +52,52 @@ __global__ void transpose(float *input, float *output, int width, int height) {
 
 __global__ void linear_layer_backward_weights_kernal(
     float* weights_gradient, float* output_gradient,
-    float* prev_input, int num_output_neurons, int num_input_neurons
+    float* prev_input, int num_output_neurons, 
+    int num_input_neurons, int batch_size
 )
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < num_output_neurons * num_input_neurons) {
         int output_idx = index / num_input_neurons;
         int input_idx = index % num_input_neurons;
-        weights_gradient[index] = output_gradient[output_idx] * prev_input[input_idx];
+
+        for (int i = 0; i < batch_size; i++) {
+            weights_gradient[index] += output_gradient[i * num_output_neurons + output_idx] * prev_input[i * num_input_neurons + input_idx];
+        }
+        weights_gradient[index] /= batch_size;
     }
 }
 
 __global__ void linear_layer_backward_inputs_kernal(
     float* input_gradient, float* output_gradient,
-    float* weights_transposed, int num_output_neurons, int num_input_neurons
+    float* weights_transposed, int num_output_neurons, 
+    int num_input_neurons, int batch_size
 )
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < num_input_neurons) {
+    if (index < num_input_neurons * batch_size) {
+        int batch_index = index / num_input_neurons;
+        int input_index = index % num_input_neurons;
+
         input_gradient[index] = 0;
+
         for (int i = 0; i < num_output_neurons; i++) {
-            input_gradient[index] += weights_transposed[index * num_output_neurons + i] * output_gradient[i];
+            input_gradient[index] += weights_transposed[input_index * num_output_neurons + i] * output_gradient[batch_index * num_output_neurons + i];
         }
+    }
+}
+
+__global__ void linear_layer_backward_biases_kernal(
+    float* biases_gradient, float* output_gradient,
+    int num_output_neurons, int batch_size
+)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < num_output_neurons) {
+        for (int i = 0; i < batch_size; i++) {
+            biases_gradient[index] += output_gradient[i * num_output_neurons + index];
+        }
+        biases_gradient[index] /= batch_size;
     }
 }
 
@@ -94,14 +118,25 @@ void LinearLayer::backward(float* output_gradient, float* input_gradient, float*
         throw std::runtime_error("Arrays are not allocated/defined");
     }
 
+    int threads_per_block = 256;
+    int blocks = (num_outputs + threads_per_block - 1) / threads_per_block;
+
+    linear_layer_backward_biases_kernal<<<blocks, threads_per_block>>>(biases_gradient, output_gradient, num_outputs, batch_size);
+    cudaDeviceSynchronize();
+    // error = cudaGetLastError();
+    // if (error != cudaSuccess) {
+    //     throw std::runtime_error("Error in backward biases kernel: " + std::string(cudaGetErrorString(error)));
+    // }
+
+
     // bias gradient is just the output gradient
-    cudaError_t error = cudaMemcpy(biases_gradient, output_gradient, num_outputs * sizeof(float), cudaMemcpyDeviceToDevice);
+    // cudaError_t error = cudaMemcpy(biases_gradient, output_gradient, num_outputs * sizeof(float), cudaMemcpyDeviceToDevice); // this only works for single item
+    
+    // TODO: add batching current implementation only works for single item
+
     // if (error != cudaSuccess) {
     //     throw std::runtime_error("Error copying biases gradient: " + std::string(cudaGetErrorString(error)));
     // }
-
-    int threads_per_block = 256;
-    int blocks = (num_outputs * num_inputs + threads_per_block - 1) / threads_per_block;
 
     // transpose weights
     float* weights_transposed;
@@ -131,7 +166,9 @@ void LinearLayer::backward(float* output_gradient, float* input_gradient, float*
     // std::cout << std::endl;
     // delete[] host_prev_input;
 
-    linear_layer_backward_weights_kernal<<<blocks, threads_per_block>>>(weights_gradient, output_gradient, prev_input, num_outputs, num_inputs);
+    blocks = (num_outputs * num_inputs + threads_per_block - 1) / threads_per_block;
+
+    linear_layer_backward_weights_kernal<<<blocks, threads_per_block>>>(weights_gradient, output_gradient, prev_input, num_outputs, num_inputs, batch_size);
     cudaDeviceSynchronize();
     error = cudaGetLastError();
     if (error != cudaSuccess) {
@@ -139,7 +176,9 @@ void LinearLayer::backward(float* output_gradient, float* input_gradient, float*
         throw std::runtime_error("Error in backward weights kernel: " + std::string(cudaGetErrorString(error)));
     }
 
-    linear_layer_backward_inputs_kernal<<<blocks, threads_per_block>>>(input_gradient, output_gradient, weights_transposed, num_outputs, num_inputs);
+    blocks = (num_inputs * batch_size + threads_per_block - 1) / threads_per_block;
+
+    linear_layer_backward_inputs_kernal<<<blocks, threads_per_block>>>(input_gradient, output_gradient, weights_transposed, num_outputs, num_inputs, batch_size);
     cudaDeviceSynchronize();
     error = cudaGetLastError();
     if (error != cudaSuccess) {

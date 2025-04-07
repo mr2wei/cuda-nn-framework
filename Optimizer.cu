@@ -47,7 +47,7 @@ __global__ void ADAM_update_weights_kernel(
 }
 
 
-Optimizer::Optimizer(NeuralNetwork* nn, float learning_rate, OptimizerType optimizer_type, LossType loss_type, float beta1, float beta2, float epsilon) {
+Optimizer::Optimizer(NeuralNetwork* nn, float learning_rate, OptimizerType optimizer_type, LossType loss_type, int batch_size, float beta1, float beta2, float epsilon) {
     this->nn = nn;
     this->learning_rate = learning_rate;
 
@@ -58,9 +58,7 @@ Optimizer::Optimizer(NeuralNetwork* nn, float learning_rate, OptimizerType optim
     this->epsilon = epsilon;
     this->adam_iteration = 0;
 
-
-
-    cudaMalloc(&device_input_gradient, nn->total_input_gradient * sizeof(float));
+    cudaMalloc(&device_input_gradient, nn->total_input_gradient * sizeof(float) * batch_size);
     cudaMalloc(&device_weights_gradient, nn->total_weights * sizeof(float));
     cudaMalloc(&device_biases_gradient, nn->total_b_z_a * sizeof(float));
     cudaMalloc(&device_weights_first_moment, nn->total_weights * sizeof(float));
@@ -182,6 +180,7 @@ void Optimizer::ADAM_step() {
 
 
 void Optimizer::backward(std::vector<float> target) {
+    // TODO: add batching current implementation only works for single item
 
     std::vector<float> results = nn->get_results();
     float* loss_gradient = new float[results.size()];
@@ -212,7 +211,7 @@ void Optimizer::backward(std::vector<float> target) {
 
     int weights_gradient_offset = nn->total_weights;
     int biases_gradient_offset = nn->total_b_z_a;
-    int input_gradient_offset = nn->total_input_gradient;
+    int input_gradient_offset = nn->total_input_gradient * batch_size;
     for (int i = nn->layers.size() - 1; i >= 0; i--) {
         
         if (!nn->layers[i]->is_activation_layer) {
@@ -246,7 +245,7 @@ void Optimizer::backward(float target) {
 }
 
 void Optimizer::zero_grad() {
-    cudaMemset(device_input_gradient, 0, nn->total_input_gradient * sizeof(float));
+    cudaMemset(device_input_gradient, 0, nn->total_input_gradient * sizeof(float) * batch_size);
     cudaMemset(device_weights_gradient, 0, nn->total_weights * sizeof(float));
     cudaMemset(device_biases_gradient, 0, nn->total_b_z_a * sizeof(float));
     // check for any errors

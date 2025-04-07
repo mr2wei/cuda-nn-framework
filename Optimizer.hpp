@@ -49,7 +49,7 @@ public:
     OptimizerType optimizer_type;
     LossType loss_type;
 
-    Optimizer(NeuralNetwork* nn, float learning_rate, OptimizerType optimizer_type, LossType loss_type, float beta1 = 0.9f, float beta2 = 0.999f, float epsilon = 1e-8f);
+    Optimizer(NeuralNetwork* nn, float learning_rate, OptimizerType optimizer_type, LossType loss_type, int batch_size = 64, float beta1 = 0.9f, float beta2 = 0.999f, float epsilon = 1e-8f);
     void backward(std::vector<float> target);
     void backward(float target);
     void step();
